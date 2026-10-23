@@ -15,8 +15,9 @@ _MATCH_TB_RE = re.compile(r"^\[(\d+)-(\d+)\]$")
 _RETIRED = {"RET", "ABD"}
 _WALKOVER = {"W/O", "WO"}
 _DEFAULT = {"DEF", "DEFAULT"}
+_SUSPENDED = {"WEA"}  # play suspended (weather), seen in Davis Cup ties: unfinished, not rateable
 
-STATUSES = ("completed", "retired", "walkover", "default", "unknown")
+STATUSES = ("completed", "retired", "walkover", "default", "suspended", "unknown")
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,8 @@ def parse_score(score: Optional[str]) -> ParsedScore:
             flag = "default"
         elif tok in _RETIRED:
             flag = "retired"
+        elif tok in _SUSPENDED:
+            flag = "suspended"
         elif (m := _MATCH_TB_RE.match(tok)):
             match_tb = True
             # a match tiebreak is a set won by the player who has more points
@@ -91,7 +94,7 @@ def parse_score(score: Optional[str]) -> ParsedScore:
         elif i == len(sets) - 1:
             last_partial = True
 
-    status = flag if flag in ("retired", "default") else "completed"
+    status = flag if flag in ("retired", "default", "suspended") else "completed"
     if flag == "walkover":  # sets present but flagged W/O: treat as unknown rather than guess
         status = "unknown"
     return ParsedScore(status, sets_w, sets_l, games_w, games_l, tiebreaks, match_tb, last_partial)

@@ -37,6 +37,12 @@ def test_walkover_and_default():
     assert d.status == "default" and d.sets_w == 1
 
 
+@pytest.mark.parametrize("s", ["6-2 4-4 WEA", "0-3 WEA", "2-2 WEA"])
+def test_weather_suspension_is_unfinished(s):
+    p = parse_score(s)
+    assert p.status == "suspended" and p.last_set_partial
+
+
 def test_match_tiebreak_not_counted_as_games():
     p = parse_score("7-6(4) 6-7(5) [10-8]")
     assert p.status == "completed" and p.match_tiebreak
