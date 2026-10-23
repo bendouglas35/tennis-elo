@@ -33,6 +33,18 @@ def main(argv=None) -> None:
     l.add_argument("--samples", type=int, default=10, help="matches perturbed per week")
     l.add_argument("--rounds", type=int, default=6, help="number of weeks perturbed")
 
+    e = sub.add_parser("elo-ladder", help="Elo extension ladder (tuned on 2008-2021, reported on 2022)")
+    e.add_argument("--db", default="data/tennis.duckdb")
+
+    m = sub.add_parser("models", help="v0.4: tune, or validate on 2022")
+    m.add_argument("action", choices=["tune", "validate"])
+    m.add_argument("--db", default="data/tennis.duckdb")
+    m.add_argument("--no-ablation", action="store_true")
+
+    ft = sub.add_parser("final-test", help="FROZEN TEST milestone (once): fit on <= 2022, score 2023+")
+    ft.add_argument("--db", default="data/tennis.duckdb")
+    ft.add_argument("--force", action="store_true")
+
     t = sub.add_parser("pace-tune", help="tune court-pace smoothing on training years only")
     t.add_argument("--db", default="data/tennis.duckdb")
 
@@ -57,6 +69,26 @@ def main(argv=None) -> None:
         ok = t["ok"] and pt["ok"]
         print("LEAKAGE CHECK:", "PASS" if ok else "FAIL")
         raise SystemExit(0 if ok else 1)
+    elif a.cmd == "elo-ladder":
+        from . import ladder
+
+        res = ladder.run(a.db)
+        print(ladder.to_markdown(res))
+        ladder.dump(res, "docs/elo_ladder.json")
+        Path("docs/elo_ladder_table.md").write_text(ladder.to_markdown(res) + "\n")
+    elif a.cmd == "models":
+        from . import experiments, report
+
+        if a.action == "tune":
+            print(experiments.tune(a.db))
+        else:
+            report.run_validation(a.db, with_ablation=not a.no_ablation)
+            print(Path("docs/v04_validation.md").read_text())
+    elif a.cmd == "final-test":
+        from . import report
+
+        report.run_final_test(a.db, force=a.force)
+        print(Path("docs/test_results.md").read_text())
     elif a.cmd == "pace-tune":
         from . import pace_tune
 

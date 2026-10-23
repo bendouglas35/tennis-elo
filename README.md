@@ -24,6 +24,10 @@ make build                     # raw CSVs -> data/tennis.duckdb
 make baseline                  # ranking baseline on train/validation years
 make leakage                   # truncation + perturbation leakage checks on the built database
 make pace-tune                 # re-tune court-pace smoothing on training years
+make elo                       # v0.3 Elo ladder (tuned on 2008-2021, reported on 2022)
+make tune                      # v0.4 hyperparameters, expanding-window on 2018-2021
+make validate                  # v0.4 validation report: tables, calibration, SHAP, ablation
+make final-test                # ONE-OFF frozen-test milestone (refuses to run twice)
 make test
 ```
 
@@ -52,7 +56,7 @@ make test
 ```
 sql/        numbered build steps (matches, symmetric sides, long player_matches)
 src/tennis/ download, score parsing, build, features and court pace (SQL generators), pace tuning,
-            leakage checks, metrics, baseline, CLI
+            leakage checks, Elo engine and ladder, modelling frame, models, reports, metrics, CLI
 tests/      score parsing, pipeline invariants, symmetry, determinism, split discipline
 docs/       write-ups per milestone
 ```
@@ -63,8 +67,8 @@ docs/       write-ups per milestone
 |---|---|
 | v0.1 | Data layer, symmetric table, ranking baseline |
 | v0.2 | SQL feature layer: form, dominance ratio, rest and fatigue, court pace, leakage tests (built) |
-| v0.3 | Elo ladder: overall, surface-blended, dynamic K with layoff decay |
-| v0.4 | Logistic regression and one GBM, calibration, bootstrap CIs, SHAP, error analysis |
+| v0.3 | Elo ladder: fixed/dynamic K, surface blend, layoff, margin of victory, best-of-5 (built) |
+| v0.4 | Logistic regression and LightGBM, calibration, bootstrap CIs, SHAP, error analysis, pace ablation (built) |
 
 ## Results
 

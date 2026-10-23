@@ -1,7 +1,7 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: setup data build baseline leakage pace-tune test clean
+.PHONY: setup data build baseline leakage pace-tune elo tune validate final-test test clean
 
 setup:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -27,6 +27,19 @@ leakage:
 
 pace-tune:
 	$(PYTHON) -m tennis.cli pace-tune
+
+elo:
+	$(PYTHON) -m tennis.cli elo-ladder
+
+tune:
+	$(PYTHON) -m tennis.cli models tune
+
+validate:
+	$(PYTHON) -m tennis.cli models validate
+
+# One-off milestone: refuses to run twice (pass --force only to reproduce).
+final-test:
+	$(PYTHON) -m tennis.cli final-test
 
 test:
 	$(PYTHON) -m pytest -q
