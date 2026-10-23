@@ -4,15 +4,13 @@ Predicting ATP tour-level match outcomes with Elo variants and gradient boosting
 a leakage-safe feature layer. The aim is a carefully validated model with honest uncertainty, not a
 claim of beating the betting market (closing lines are very sharp).
 
-**Status: v0.2 feature layer complete.** Data layer, symmetric modelling table, ranking baseline,
-and the leakage-safe feature layer (form, fatigue, experience, entry, court pace) are built and
-tested on real data. The Elo ladder and ML models follow.
+**Status: v0.4 complete.** Leakage-safe SQL feature layer, tuned Elo ladder, logistic regression and
+LightGBM, with calibration, SHAP, error analysis, ablations and a one-shot frozen-test evaluation.
 
 ## Question
 
-Does surface-aware, uncertainty-aware Elo, or a gradient-boosted model on lagged form and fatigue
-features, predict ATP matches better than a ranking baseline, and by how much (with confidence
-intervals)?
+Does surface-aware Elo, or a model on lagged form, fatigue and court-pace features, predict ATP
+matches better than a ranking baseline, and by how much (with confidence intervals)?
 
 ## Quick start
 
@@ -73,17 +71,26 @@ docs/       write-ups per milestone
 ## Results
 
 Population: ordinary tour matches (Davis Cup, Laver Cup, ATP Cup, United Cup and Next Gen Finals
-excluded). Train 2000-2021, validated on 2022 (n = 2,625). The frozen test years (2023+) have not
-been evaluated. Data snapshot: `docs/data_snapshot.md`. A coin flip scores log loss 0.6931.
+excluded). Log loss, lower is better, with 95% intervals that resample whole tournaments. A coin flip
+scores 0.6931. Validation 2022 (n = 2,630) was used to compare models; the **frozen test, 2023 onwards
+(n = 10,412), was scored once** with models refitted on 2003-2022 and nothing re-tuned. Data snapshot:
+`docs/data_snapshot.md`.
 
-| Model | Accuracy | Log loss | Brier |
+| Model | Validation 2022 | Frozen test 2023+ | Test accuracy |
 |---|---|---|---|
-| Higher-ranked player wins | 0.6408 | n/a (hard prediction) | n/a |
-| Logistic on log rank ratio (v0.1 baseline) | 0.6408 | 0.6314 | 0.2205 |
+| Higher-ranked player wins (as a probability: logistic on log rank ratio) | 0.6318 | 0.6314 [0.6214, 0.6418] | 63.8% |
+| Elo, tuned (v0.3) | 0.6131 | 0.6258 [0.6152, 0.6366] | 64.2% |
+| Logistic regression, all features | 0.5960 | 0.6095 [0.5979, 0.6210] | 66.1% |
+| LightGBM, all features, recalibrated | 0.5967 | 0.6069 [0.5961, 0.6175] | 65.7% |
+| Average of the two | 0.5950 | 0.6066 [0.5956, 0.6175] | 65.9% |
 
-Elo variants and the ML models will be added here with bootstrap confidence intervals. Including
-team events makes the same baseline look slightly better (log loss 0.6260), because those matches
-are easier to predict.
+The best model beats ranks by 0.025 log loss and tuned Elo by 0.019 on the test set (both intervals
+exclude zero), and the gain holds in each of 2023-2026. Honest reading: that is a real, stable
+improvement but a small one, the logistic regression matches the GBM within noise, and nothing
+here is compared with betting-market prices. Pace: static court pace helps by about 0.0007 log loss
+(significant only for the logistic regression); running pace, indoor/outdoor and altitude add nothing
+detectable. Details, calibration, SHAP, error slices and ablations: `docs/models.md`; Elo ladder:
+`docs/elo_ladder.md`.
 
 ## Data and licence
 
