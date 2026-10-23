@@ -25,6 +25,8 @@ def main(argv=None) -> None:
 
     r = sub.add_parser("baseline", help="ranking baseline on train/validation years")
     r.add_argument("--db", default="data/tennis.duckdb")
+    r.add_argument("--include-team-events", action="store_true",
+                   help="include Davis/Laver/ATP/United Cup and Next Gen Finals (excluded by default)")
 
     a = p.parse_args(argv)
     if a.cmd == "download":
@@ -36,7 +38,7 @@ def main(argv=None) -> None:
         for k, v in build(Path(a.db), Path(a.raw_dir), a.min_year).items():
             print(f"{k:>16}: {v:,}")
     elif a.cmd == "baseline":
-        res = baseline.run(a.db)
+        res = baseline.run(a.db, include_team_events=a.include_team_events)
         print(f"train n={res['n_train']:,}  validation n={res['n_val']:,}")
         print(f"higher-ranked-wins accuracy (val): {res['val_accuracy_higher_ranked']:.4f}")
         print(f"logistic on log rank ratio (val):  acc={res['val_accuracy_logistic']:.4f}  "

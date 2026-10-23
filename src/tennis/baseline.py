@@ -36,15 +36,18 @@ def predict(beta: np.ndarray, x: np.ndarray) -> np.ndarray:
     return _sigmoid(beta[0] + beta[1] * x)
 
 
-def run(db_path) -> dict:
+def run(db_path, include_team_events: bool = False) -> dict:
+    """Team events (Davis/Laver/ATP/United Cup) and Next Gen Finals are excluded by default."""
+    population = "" if include_team_events else "and not is_team_event and not is_nonstandard_format"
     con = duckdb.connect(str(db_path), read_only=True)
     try:
         df = con.execute(
-            """
+            f"""
             select year(tourney_date) as yr, rank_a, rank_b, a_wins
             from match_sides
             where rank_a is not null and rank_b is not null and rank_a <> rank_b
               and year(tourney_date) <= ?
+              {population}
             """,
             [VAL_YEAR],
         ).df()

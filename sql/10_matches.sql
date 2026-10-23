@@ -5,7 +5,10 @@
 
 create or replace table matches as
 select
-    m.tourney_id || '-' || m.match_num                    as match_id,
+    -- Some source tournaments (e.g. nine events in Aug-Oct 2025) have no match_num; fall back to
+    -- tournament + round + player ids, which is unique within a tournament.
+    m.tourney_id || '-' || coalesce(m.match_num, coalesce(m.round, '?') || '-' || m.winner_id || '-' || m.loser_id)
+                                                           as match_id,
     m.tourney_id,
     m.tourney_name,
     m.surface,
@@ -51,7 +54,13 @@ select
 
     -- walkovers / defaults carry no (or little) information: excluded from ratings and training
     (s.status in ('completed', 'retired'))                 as is_rateable,
-    -- Davis Cup ties: different incentives, excluded later from core ratings
-    (m.tourney_level = 'D')                                as is_team_event
+    -- Team events and exhibitions have different incentives: Davis Cup (level D) plus Laver Cup,
+    -- ATP Cup and United Cup, which the source files under level A. Excluded later from core ratings.
+    (m.tourney_level = 'D'
+     or lower(m.tourney_name) like '%laver cup%'
+     or lower(m.tourney_name) like '%atp cup%'
+     or lower(m.tourney_name) like '%united cup%')         as is_team_event,
+    -- Next Gen Finals use shortened sets, so scores/stats are not comparable to normal matches
+    (lower(m.tourney_name) like '%next gen%')              as is_nonstandard_format
 from raw_matches m
 left join score_parsed s on m.score is not distinct from s.score;

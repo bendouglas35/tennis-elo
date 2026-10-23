@@ -34,6 +34,41 @@ def test_tennismylife_layout_with_indoor_column(tmp_path):
     assert {r[0] for r in con.execute("select distinct indoor from match_sides").fetchall()} == {"I", "O"}
 
 
+def test_missing_match_num_gets_surrogate_unique_match_id(tmp_path):
+    from conftest import make_row, write_csv
+
+    d = tmp_path / "nomatchnum"
+    d.mkdir()
+    rows = [make_row(2025, 1, 10, 20, match_num="", round="R32"),
+            make_row(2025, 2, 11, 21, match_num="", round="R32"),
+            make_row(2025, 3, 10, 22, match_num="", round="R16"),
+            make_row(2025, 4, 12, 23)]  # normal row alongside
+    write_csv(d / "2025.csv", rows)
+    db, c = _build(d, tmp_path, "nm.duckdb")
+    con = duckdb.connect(str(db), read_only=True)
+    assert c["matches"] == 4
+    assert con.execute("select count(*) from matches where match_id is null").fetchone()[0] == 0
+    assert con.execute("select count(distinct match_id) from matches").fetchone()[0] == 4
+
+
+def test_team_and_nonstandard_event_flags(tmp_path):
+    from conftest import make_row, write_csv
+
+    d = tmp_path / "events"
+    d.mkdir()
+    rows = [make_row(2024, 1, 1, 2, tourney_name="Laver Cup", tourney_level="A"),
+            make_row(2024, 2, 3, 4, tourney_name="United Cup", tourney_level="A"),
+            make_row(2024, 3, 5, 6, tourney_name="Atp Cup", tourney_level="A"),
+            make_row(2024, 4, 7, 8, tourney_name="Davis Cup G1 R1: A vs B", tourney_level="D"),
+            make_row(2024, 5, 9, 10, tourney_name="Next Gen ATP Finals", tourney_level="A"),
+            make_row(2024, 6, 11, 12, tourney_name="Brisbane", tourney_level="250")]
+    write_csv(d / "2024.csv", rows)
+    db, _ = _build(d, tmp_path, "ev.duckdb")
+    got = dict(duckdb.connect(str(db), read_only=True).execute(
+        "select match_num, is_team_event::int * 10 + is_nonstandard_format::int from matches").fetchall())
+    assert got == {1: 10, 2: 10, 3: 10, 4: 10, 5: 1, 6: 0}
+
+
 def test_sackmann_layout_has_null_indoor(raw_dir, tmp_path):
     db, _ = _build(raw_dir, tmp_path)
     con = duckdb.connect(str(db), read_only=True)

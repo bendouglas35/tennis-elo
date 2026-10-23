@@ -57,7 +57,18 @@ docs/       write-ups per milestone
 
 ## Results
 
-Pending real data. This table will hold log loss / Brier per model with bootstrap CIs.
+Population: ordinary tour matches (Davis Cup, Laver Cup, ATP Cup, United Cup and Next Gen Finals
+excluded). Train 2000-2021, validated on 2022 (n = 2,625). The frozen test years (2023+) have not
+been evaluated. Data snapshot: `docs/data_snapshot.md`. A coin flip scores log loss 0.6931.
+
+| Model | Accuracy | Log loss | Brier |
+|---|---|---|---|
+| Higher-ranked player wins | 0.6408 | n/a (hard prediction) | n/a |
+| Logistic on log rank ratio (v0.1 baseline) | 0.6408 | 0.6314 | 0.2205 |
+
+Elo variants and the ML models will be added here with bootstrap confidence intervals. Including
+team events makes the same baseline look slightly better (log loss 0.6260), because those matches
+are easier to predict.
 
 ## Data and licence
 
