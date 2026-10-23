@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tennis-elo"
+version = "0.1.0"
+description = "ATP match prediction: Elo variants and gradient boosting with a DuckDB feature layer"
+requires-python = ">=3.10"
+dependencies = ["duckdb>=1.0", "pandas>=2.0", "numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+tennis = "tennis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

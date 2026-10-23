@@ -1,0 +1,11 @@
+# Data is not redistributed (CC BY-NC-SA 4.0 source); rebuild it with `make data build`
+data/raw/*
+!data/raw/.gitkeep
+data/*.duckdb
+data/*.duckdb.wal
+
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+.ipynb_checkpoints/
