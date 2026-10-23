@@ -53,8 +53,8 @@ betting-market prices, so it says nothing about being able to beat the market.
 ## Calibration
 
 Reliability plots: `docs/figures/calibration_validation.png` and `calibration_test.png`. Raw Elo is
-the worst calibrated on the test set (expected calibration error 0.029; it drifts overconfident), the
-raw GBM is slightly overconfident (0.026), and the slope-recalibrated GBM is best (0.013). The slope
+the worst calibrated on the test set (expected calibration error 0.029), the raw GBM is next (0.026),
+and the slope-recalibrated GBM is best (0.013); the figure shows the direction of the misses. The slope
 was fitted on 2018-2021 out-of-fold predictions and carried to the test unchanged.
 
 ## Court pace: does it earn its place?
@@ -96,19 +96,19 @@ understate what each contributes alone.
 
 ## Error analysis
 
-Full slices are in the two result files below. Patterns that held on both validation and test:
+Full slices are in the two result files below. Patterns on the test set (validation is similar but noisier):
 
 - The model's gain over Elo is largest where Elo is least informed: players with fewer than 20 rated
   matches (-0.030 on test), best-of-five matches (-0.028), Grand Slam matches (-0.028), early rounds
   (R128 -0.032) and clay (-0.025). It is smallest in quarter-finals and semi-finals (-0.003 to -0.004),
   where the field is the strongest and closest.
-- Close matches (rank gap below 0.7 in log terms) sit at 57-59% accuracy; there the model is hardly
+- Close matches (rank gap below 0.7 in log terms) sit at 57-58% accuracy on the test set; there the model is hardly
   better than a coin flip with a small tilt. Matches with a large rank gap are 75% accurate.
 - 250-level events are the hardest to predict (log loss 0.640, accuracy 62.7%).
 - Slices with fewer than about 70 matches (the "A" level, finals, round robin) move around and
   should not be read.
-- The largest confident misses are ordinary tennis upsets, for example a qualifier beating a top-10
-  seed. There is no sign of a systematic failure.
+- The largest confident misses on validation are lower-ranked players beating clear favourites
+  (a table is in the validation section below). I did not find a systematic failure, but I only looked at ten.
 
 ## Limitations
 
