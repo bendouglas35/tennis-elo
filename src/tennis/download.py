@@ -13,29 +13,45 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-BASE_URL = "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master"
-MATCH_FILE_RE = re.compile(r"^atp_matches_(\d{4})\.csv$")
+SOURCES = {
+    # name -> (url template, saved file name template)
+    "sackmann": ("https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_{year}.csv",
+                 "atp_matches_{year}.csv"),
+    # TennisMyLife (https://stats.tennismylife.org/tennis-match-database): same columns plus `indoor`.
+    "tml": ("https://stats.tennismylife.org/data/{year}.csv", "{year}.csv"),
+}
+# Tour-level main-draw files: Sackmann's atp_matches_YYYY.csv or TennisMyLife's YYYY.csv.
+# Qualifying / challenger / futures files have other names and are not matched.
+MATCH_FILE_RE = re.compile(r"^(?:atp_matches_)?(\d{4})\.csv$")
 
 
 def match_files(raw_dir: Path, min_year: int = 0) -> list[Path]:
-    """Tour-level main-draw files only (qual/challenger/futures files don't match the pattern)."""
-    out = []
-    for p in sorted(Path(raw_dir).glob("atp_matches_*.csv")):
+    out, seen = [], {}
+    for p in sorted(Path(raw_dir).glob("*.csv")):
         m = MATCH_FILE_RE.match(p.name)
-        if m and int(m.group(1)) >= min_year:
-            out.append(p)
+        if not m or int(m.group(1)) < min_year:
+            continue
+        year = int(m.group(1))
+        if year in seen:
+            raise SystemExit(
+                f"Year {year} appears twice ({seen[year].name}, {p.name}): mixing sources would "
+                "duplicate matches. Keep one source per raw directory."
+            )
+        seen[year] = p
+        out.append(p)
     return out
 
 
 def download(raw_dir: Path, first_year: int = 2000, last_year: int | None = None,
-             base_url: str = BASE_URL) -> list[Path]:
+             source: str = "sackmann") -> list[Path]:
+    url_tpl, name_tpl = SOURCES[source]
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     last_year = last_year or dt.date.today().year
     got: list[Path] = []
     for year in range(first_year, last_year + 1):
-        name = f"atp_matches_{year}.csv"
-        url = f"{base_url}/{name}"
+        name = name_tpl.format(year=year)
+        url = url_tpl.format(year=year)
         try:
             with urllib.request.urlopen(url, timeout=60) as resp:
                 data = resp.read()
@@ -50,8 +66,8 @@ def download(raw_dir: Path, first_year: int = 2000, last_year: int | None = None
         print(f"  ok   {name} ({len(data):,} bytes)")
     if not got:
         raise SystemExit(
-            "No match files downloaded. If GitHub is unreachable from here, download "
-            "atp_matches_YYYY.csv manually and run: tennis download --from-dir <folder>"
+            "No match files downloaded. If the host is unreachable from here, download the "
+            "yearly CSVs manually and run: tennis download --from-dir <folder>"
         )
     return got
 
@@ -61,7 +77,7 @@ def copy_from_dir(src_dir: Path, raw_dir: Path, min_year: int = 0) -> list[Path]
     raw_dir.mkdir(parents=True, exist_ok=True)
     files = match_files(Path(src_dir), min_year)
     if not files:
-        raise SystemExit(f"No atp_matches_YYYY.csv files found in {src_dir}")
+        raise SystemExit(f"No yearly match CSVs (atp_matches_YYYY.csv or YYYY.csv) found in {src_dir}")
     out = []
     for f in files:
         shutil.copy2(f, raw_dir / f.name)

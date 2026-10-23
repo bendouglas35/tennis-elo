@@ -12,7 +12,7 @@ with oriented as (
 )
 select
     match_id, tourney_id, tourney_name, tourney_date, match_num, round,
-    surface, tourney_level, best_of, is_team_event,
+    surface, indoor, tourney_level, best_of, is_team_event,
     case when winner_is_a then winner_id   else loser_id   end as player_a_id,
     case when winner_is_a then loser_id    else winner_id  end as player_b_id,
     case when winner_is_a then winner_name else loser_name end as player_a_name,

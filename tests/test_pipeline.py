@@ -18,6 +18,37 @@ def test_only_tour_level_files_are_loaded(raw_dir):
     assert names == ["atp_matches_2020.csv", "atp_matches_2021.csv", "atp_matches_2022.csv"]
 
 
+def test_tennismylife_layout_with_indoor_column(tmp_path):
+    from conftest import COLUMNS, make_row, write_csv
+
+    d = tmp_path / "tml"
+    d.mkdir()
+    for year in (2021, 2022):
+        rows = [make_row(year, n, 1 + n % 50, 60 + n % 40, indoor="I" if n % 2 else "O")
+                for n in range(1, 41)]
+        write_csv(d / f"{year}.csv", rows, COLUMNS + ["indoor"])
+    assert [p.name for p in match_files(d)] == ["2021.csv", "2022.csv"]
+    db, c = _build(d, tmp_path, "tml.duckdb")
+    assert c["matches"] == 80
+    con = duckdb.connect(str(db), read_only=True)
+    assert {r[0] for r in con.execute("select distinct indoor from match_sides").fetchall()} == {"I", "O"}
+
+
+def test_sackmann_layout_has_null_indoor(raw_dir, tmp_path):
+    db, _ = _build(raw_dir, tmp_path)
+    con = duckdb.connect(str(db), read_only=True)
+    assert con.execute("select count(indoor) from matches").fetchone()[0] == 0
+
+
+def test_mixing_sources_in_one_directory_is_refused(raw_dir):
+    import pytest
+    from conftest import make_row, write_csv
+
+    write_csv(raw_dir / "2021.csv", [make_row(2021, 1, 7, 8)])  # 2021 now exists in both styles
+    with pytest.raises(SystemExit, match="appears twice"):
+        match_files(raw_dir)
+
+
 def test_counts_and_rateable_flags(raw_dir, tmp_path):
     db, c = _build(raw_dir, tmp_path)
     assert c["matches"] == 3 * 203

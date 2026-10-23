@@ -40,9 +40,9 @@ def make_row(year: int, n: int, winner: int, loser: int, score: str = "6-3 6-4",
     return row
 
 
-def write_csv(path: Path, rows: list[dict]) -> None:
+def write_csv(path: Path, rows: list[dict], columns: list[str] = COLUMNS) -> None:
     with path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=COLUMNS)
+        w = csv.DictWriter(f, fieldnames=columns)
         w.writeheader()
         w.writerows(rows)
 

@@ -9,6 +9,7 @@ select
     m.tourney_id,
     m.tourney_name,
     m.surface,
+    m.indoor,                                                         -- raw value; null for Sackmann data
     m.tourney_level,
     try_strptime(m.tourney_date, '%Y%m%d')::date           as tourney_date,   -- Monday of tournament week
     try_cast(m.match_num as integer)                       as match_num,

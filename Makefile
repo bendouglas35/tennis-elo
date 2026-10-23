@@ -13,7 +13,7 @@ data:
 ifdef FROM
 	$(PYTHON) -m tennis.cli download --from-dir $(FROM)
 else
-	$(PYTHON) -m tennis.cli download
+	$(PYTHON) -m tennis.cli download --source $(or $(SOURCE),sackmann)
 endif
 
 build:

@@ -61,9 +61,18 @@ Pending real data. This table will hold log loss / Brier per model with bootstra
 
 ## Data and licence
 
-Match data: Tennis databases, files, and algorithms by Jeff Sackmann / Tennis Abstract,
-<https://github.com/JeffSackmann/tennis_atp>, licensed under
-[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). This project is
-non-commercial and credits the source. The raw data and derived databases are git-ignored and not
-redistributed; rebuild them with the commands above. Any derived dataset you publish must be
-shared under the same licence.
+Two interchangeable sources with the same core columns. Use **one per raw directory** (mixing is
+refused, since it would duplicate matches):
+
+- **TennisMyLife** (<https://stats.tennismylife.org/tennis-match-database>): `YYYY.csv`, ATP player
+  IDs, an extra `indoor` column, updated daily. Stated licence: MIT; it says it is enriched from
+  other sources, so check its terms before redistributing anything derived.
+  `make data` with `--source tml`, or drop the CSVs in and use `FROM=`.
+- **Jeff Sackmann's tennis_atp** (<https://github.com/JeffSackmann/tennis_atp>): `atp_matches_YYYY.csv`,
+  licensed [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (non-commercial,
+  attribution, share-alike). Credit: Tennis databases, files, and algorithms by Jeff Sackmann /
+  Tennis Abstract.
+
+Player IDs differ between the two sources, so their files cannot be joined on `player_id`.
+The source changes daily, so **pin a snapshot** (date and file hashes) before evaluating on the
+frozen test years. Raw data and derived databases are git-ignored and not redistributed.

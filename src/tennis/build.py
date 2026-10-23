@@ -32,6 +32,11 @@ def build(db_path: Path, raw_dir: Path, min_year: int = 2000) -> dict:
             f"select * from read_csv([{file_list}], header=true, all_varchar=true, union_by_name=true)"
         )
 
+        # TennisMyLife files carry an `indoor` column; Sackmann's do not. Keep one schema.
+        cols = {r[0].lower() for r in con.execute("describe raw_matches").fetchall()}
+        if "indoor" not in cols:
+            con.execute("alter table raw_matches add column indoor varchar")
+
         scores = [r[0] for r in con.execute("select distinct score from raw_matches").fetchall()]
         score_parsed = pd.DataFrame([parsed_dict(s) for s in scores])
         con.register("score_parsed", score_parsed)
