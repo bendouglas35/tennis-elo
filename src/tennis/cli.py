@@ -28,6 +28,10 @@ def main(argv=None) -> None:
     r.add_argument("--include-team-events", action="store_true",
                    help="include Davis/Laver/ATP/United Cup and Next Gen Finals (excluded by default)")
 
+    l = sub.add_parser("leakage-check", help="truncation and perturbation leakage tests on a built db")
+    l.add_argument("--db", default="data/tennis.duckdb")
+    l.add_argument("--samples", type=int, default=80)
+
     a = p.parse_args(argv)
     if a.cmd == "download":
         if a.from_dir:
@@ -37,6 +41,18 @@ def main(argv=None) -> None:
     elif a.cmd == "build":
         for k, v in build(Path(a.db), Path(a.raw_dir), a.min_year).items():
             print(f"{k:>16}: {v:,}")
+    elif a.cmd == "leakage-check":
+        from . import leakage
+
+        t = leakage.truncation_check(a.db)
+        for c in t["cases"]:
+            print(f"truncation q={c['quantile']}: compared {c['rows_compared']:,} rows, "
+                  f"changed {c['rows_changed']}")
+        pt = leakage.perturbation_check(a.db, n=a.samples)
+        print(f"perturbation: {pt}")
+        ok = t["ok"] and pt["ok"]
+        print("LEAKAGE CHECK:", "PASS" if ok else "FAIL")
+        raise SystemExit(0 if ok else 1)
     elif a.cmd == "baseline":
         res = baseline.run(a.db, include_team_events=a.include_team_events)
         print(f"train n={res['n_train']:,}  validation n={res['n_val']:,}")

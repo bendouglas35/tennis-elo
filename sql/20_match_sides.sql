@@ -11,8 +11,8 @@ with oriented as (
     where is_rateable
 )
 select
-    match_id, tourney_id, tourney_name, tourney_date, match_num, round,
-    surface, indoor, tourney_level, best_of, is_team_event, is_nonstandard_format,
+    match_id, tourney_id, event_id, tourney_name, tourney_date, ord_num, match_num, round, draw_size,
+    surface, indoor, indoor_filled, tourney_level, best_of, is_team_event, is_nonstandard_format,
     case when winner_is_a then winner_id   else loser_id   end as player_a_id,
     case when winner_is_a then loser_id    else winner_id  end as player_b_id,
     case when winner_is_a then winner_name else loser_name end as player_a_name,

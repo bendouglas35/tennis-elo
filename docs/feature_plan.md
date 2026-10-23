@@ -1,6 +1,7 @@
 # Feature plan (v0.2)
 
-Status: agreed scope, not yet built. Items marked **(default)** are my assumptions, open to change.
+Status: step 1 (everything except court pace) is built and tested; court pace is next. Items marked
+**(default)** are my assumptions, open to change.
 
 ## Ordering and leakage rules
 
@@ -68,3 +69,23 @@ Keyed by (event id, surface, indoor), because event ids are stable across sponso
 - **Warm-up:** ratings and form run from 2000; model training starts in 2003, so early cold-start
   ratings are not learned from. Pace residuals likewise need a few years of player history.
 - **Frozen split unchanged:** train <= 2021, validate 2022, test >= 2023.
+
+## Step 1 as built (differences from the plan above)
+
+- **Features in `model_features`:** 11 point-weighted exponentially weighted form stats (overall),
+  5 surface-specific ones, dominance ratio (overall and surface), rest and fatigue
+  (`days_since_last`, tournament minutes/sets/rounds so far, matches in the last 14 and 28 days,
+  career matches, matches on the surface in the last 365 days, previous-match retirement), entry
+  flags (seeded / qualifier / wildcard / lucky loser), log rank ratio, log rank-points ratio, age,
+  height and handedness. Cross-player features are A minus B (`d_*`); a few raw per-side values are
+  kept (`*_a`, `*_b`).
+- **Tiebreak win % dropped.** The parsed score gives the number of tiebreaks played but not who
+  won each one. Game-win % and match win % are in.
+- **Half-life 20 matches and minimum effective sample 3 are defaults, not tuned.** Tuning happens
+  on the 2022 validation year in v0.4. Form is NULL when fewer than 3 effective matches exist
+  (about 10% of matches overall).
+- **Same-key matches:** 104 groups where a player has several matches with an identical ordering
+  key, almost all in team events (ATP Cup, Davis Cup, Laver Cup). They are treated as
+  simultaneous, which is safe (no leakage) at the cost of ignoring the earlier tie's load.
+- **Leakage tests:** `make leakage` (truncation and perturbation on the real database) and the
+  pytest suite, which also mutation-tests the checks themselves by injecting a leak.

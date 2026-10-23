@@ -47,6 +47,54 @@ def write_csv(path: Path, rows: list[dict], columns: list[str] = COLUMNS) -> Non
         w.writerows(rows)
 
 
+def stat_overrides(rng: random.Random) -> dict:
+    """Coherent random serve stats for both players of a match."""
+    out = {}
+    for side, (lo, hi) in (("w", (0.62, 0.80)), ("l", (0.55, 0.72))):
+        svpt = rng.randint(50, 110)
+        first_in = int(svpt * rng.uniform(0.5, 0.7))
+        first_won = int(first_in * rng.uniform(lo, hi))
+        second_won = int((svpt - first_in) * rng.uniform(0.4, 0.6))
+        out.update({f"{side}_svpt": svpt, f"{side}_1stIn": first_in, f"{side}_1stWon": first_won,
+                    f"{side}_2ndWon": second_won, f"{side}_ace": rng.randint(0, 15),
+                    f"{side}_df": rng.randint(0, 6), f"{side}_bpFaced": rng.randint(0, 9),
+                    f"{side}_bpSaved": rng.randint(0, 4), f"{side}_SvGms": rng.randint(8, 16)})
+    out["minutes"] = rng.randint(50, 220)
+    return out
+
+
+@pytest.fixture
+def rich_raw_dir(tmp_path: Path) -> Path:
+    """3 years x 26 weekly 16-player knockout events (R16..F) with varied stats; event ids repeat
+    across years (tourney_id suffix), like the real source."""
+    import datetime as dt
+
+    rng = random.Random(1)
+    d = tmp_path / "rich"
+    d.mkdir()
+    for year in (2019, 2020, 2021):
+        rows = []
+        for week in range(26):
+            date = dt.date(year, 1, 4) + dt.timedelta(days=7 * week)
+            alive = rng.sample(range(1, 41), 16)
+            n = 0
+            for rnd, count in (("R16", 8), ("QF", 4), ("SF", 2), ("F", 1)):
+                nxt = []
+                for i in range(count):
+                    a, b = alive[2 * i], alive[2 * i + 1]
+                    w, l = (min(a, b), max(a, b)) if rng.random() < 0.65 else (max(a, b), min(a, b))
+                    n += 1
+                    rows.append(make_row(
+                        year, n, w, l, wrank=w, lrank=l,
+                        tourney_id=f"{year}-{500 + week}", tourney_name=f"Event {500 + week}",
+                        tourney_date=date.strftime("%Y%m%d"), round=rnd, match_num=n,
+                        **stat_overrides(rng)))
+                    nxt.append(w)
+                alive = nxt
+        write_csv(d / f"{year}.csv", rows)
+    return d
+
+
 @pytest.fixture
 def raw_dir(tmp_path: Path) -> Path:
     """Years 2020-2022. Higher-ranked player always wins (rank = player id)."""

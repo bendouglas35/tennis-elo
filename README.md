@@ -4,8 +4,9 @@ Predicting ATP tour-level match outcomes with Elo variants and gradient boosting
 a leakage-safe feature layer. The aim is a carefully validated model with honest uncertainty, not a
 claim of beating the betting market (closing lines are very sharp).
 
-**Status: v0.1 in progress.** Data loading, score parsing, the symmetric modelling table and a
-ranking baseline are built and tested on synthetic data. Real-data results are not in yet.
+**Status: v0.2 in progress.** Data layer, symmetric modelling table, ranking baseline, and the
+leakage-safe feature layer (form, fatigue, experience, entry) are built and tested on real data.
+Court pace is next; Elo ladder and ML models follow.
 
 ## Question
 
@@ -21,6 +22,7 @@ make data                      # download atp_matches_2000..now into data/raw
 #   or: make data FROM=/path/to/folder/with/atp_matches_YYYY.csv
 make build                     # raw CSVs -> data/tennis.duckdb
 make baseline                  # ranking baseline on train/validation years
+make leakage                   # truncation + perturbation leakage checks on the built database
 make test
 ```
 
@@ -29,7 +31,10 @@ make test
 - **Symmetric rows.** Each match is labelled player A / player B by a hash of `match_id`, so the
   winner is not always "player 1". The target is `a_wins`. See `sql/20_match_sides.sql`.
 - **Leakage.** Columns from `minutes` to `l_bpFaced` describe the match itself. They only enter
-  features through windows that end strictly before the match (v0.2), with automated tests.
+  features through windows that end strictly before the match, ordered by `ord_num` (tournament
+  week, then round; see `sql/10_matches.sql`). `make leakage` deletes the future and overwrites
+  in-match stats and checks that no feature moves; the tests also inject a deliberate leak to prove
+  the checks fail when they should.
 - **Return stats are derived.** The source has no return columns; they are the opponent's serve
   stats inverted (`sql/25_player_matches.sql`).
 - **Walkovers and defaults** are excluded from ratings and training. Retirements are kept and
@@ -41,7 +46,8 @@ make test
 
 ```
 sql/        numbered build steps (matches, symmetric sides, long player_matches)
-src/tennis/ download, score parsing, build, metrics, baseline, CLI
+src/tennis/ download, score parsing, build, features (SQL generators), leakage checks, metrics,
+            baseline, CLI
 tests/      score parsing, pipeline invariants, symmetry, determinism, split discipline
 docs/       write-ups per milestone
 ```
@@ -51,7 +57,7 @@ docs/       write-ups per milestone
 | Step | Content |
 |---|---|
 | v0.1 | Data layer, symmetric table, ranking baseline |
-| v0.2 | SQL feature view: rolling return/serve form, dominance ratio, rest and fatigue, leakage tests |
+| v0.2 | SQL feature layer: form, dominance ratio, rest and fatigue, leakage tests (built); court pace (next) |
 | v0.3 | Elo ladder: overall, surface-blended, dynamic K with layoff decay |
 | v0.4 | Logistic regression and one GBM, calibration, bootstrap CIs, SHAP, error analysis |
 
