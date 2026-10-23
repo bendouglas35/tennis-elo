@@ -1,7 +1,7 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: setup data build baseline leakage test clean
+.PHONY: setup data build baseline leakage pace-tune test clean
 
 setup:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -24,6 +24,9 @@ baseline:
 
 leakage:
 	$(PYTHON) -m tennis.cli leakage-check
+
+pace-tune:
+	$(PYTHON) -m tennis.cli pace-tune
 
 test:
 	$(PYTHON) -m pytest -q

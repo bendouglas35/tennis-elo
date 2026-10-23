@@ -23,15 +23,15 @@ def _quote(path: Path) -> str:
     return "'" + str(path).replace("'", "''") + "'"
 
 
-def derive(con, half_life: float = 20.0, min_eff: float = 3.0) -> None:
+def derive(con, half_life: float = 20.0, min_eff: float = 3.0, pace=None) -> None:
     """Rebuild every table downstream of `matches`."""
     for step in DERIVED_SQL:
         con.execute((SQL_DIR / step).read_text())
-    build_features(con, half_life=half_life, min_eff=min_eff)
+    build_features(con, half_life=half_life, min_eff=min_eff, pace=pace)
 
 
 def build(db_path: Path, raw_dir: Path, min_year: int = 2000,
-          half_life: float = 20.0, min_eff: float = 3.0) -> dict:
+          half_life: float = 20.0, min_eff: float = 3.0, pace=None) -> dict:
     files = match_files(Path(raw_dir), min_year)
     if not files:
         raise SystemExit(f"No yearly match CSVs >= {min_year} in {raw_dir}. Run `make data` first.")
@@ -62,7 +62,7 @@ def build(db_path: Path, raw_dir: Path, min_year: int = 2000,
         if dupes:
             raise SystemExit(f"{dupes} duplicate match_id values in matches; inspect tourney_id/match_num.")
 
-        derive(con, half_life=half_life, min_eff=min_eff)
+        derive(con, half_life=half_life, min_eff=min_eff, pace=pace)
 
         return {
             "files": len(files),

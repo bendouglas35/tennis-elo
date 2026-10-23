@@ -162,7 +162,7 @@ def test_leakage_truncation_and_perturbation_pass(tmp_path, rich_raw_dir):
     build(db, rich_raw_dir)
     t = leakage.truncation_check(str(db))
     assert t["ok"], t
-    p = leakage.perturbation_check(str(db), n=20)
+    p = leakage.perturbation_check(str(db), n=10, rounds=6, min_sample=1)
     assert p["ok"], p
     assert p["perturbed"] >= 5 and p["later_rows_changed"] > 0  # not vacuous
 
@@ -171,5 +171,35 @@ def test_leakage_check_catches_an_injected_leak(tmp_path, rich_raw_dir, monkeypa
     db = tmp_path / "rich.duckdb"
     build(db, rich_raw_dir)
     monkeypatch.setattr(features, "_UNBOUNDED", "range between unbounded preceding and current row")
-    p = leakage.perturbation_check(str(db), n=20)
+    p = leakage.perturbation_check(str(db), n=10, rounds=6, min_sample=1)
     assert not p["ok"] and p["own_rows_changed"] > 0
+
+
+@pytest.mark.parametrize("order", [(0, 1), (1, 0)])
+def test_prev_retired_is_deterministic_when_latest_matches_share_an_order_key(tmp_path, order):
+    """Two matches with an identical ordering key (as in Davis Cup ties), one ending in retirement:
+    the next match must see prev_retired = 1 whichever way the rows happen to be stored."""
+    tied = [make_row(2022, 1, 1, 11, tourney_id="2022-A", tourney_date=_date(0), round="R32", match_num=1),
+            make_row(2022, 1, 12, 1, tourney_id="2022-A", tourney_date=_date(0), round="R32", match_num=2,
+                     score="6-3 2-0 RET")]
+    rows = [tied[i] for i in order] + [
+        make_row(2022, 1, 1, 13, tourney_id="2022-B", tourney_date=_date(7), round="R32", match_num=1)]
+    con = _toy(tmp_path, rows)
+    got = con.execute("select prev_retired from fatigue where match_id = '2022-B-1' and player_id = '1'")
+    assert got.fetchone() == (1,)
+
+
+def test_indoor_zero_is_normalised_to_outdoor(tmp_path):
+    cols = COLUMNS + ["indoor"]
+    rows = [make_row(2020, 1, 1, 2, tourney_id="2020-900", indoor="O"),
+            make_row(2021, 1, 1, 2, tourney_id="2021-900", indoor="0"),
+            make_row(2022, 1, 1, 2, tourney_id="2022-900", indoor="")]
+    d = tmp_path / "ind0"
+    d.mkdir()
+    for year in (2020, 2021, 2022):
+        write_csv(d / f"{year}.csv", [r for r in rows if r["tourney_date"].startswith(str(year))], cols)
+    db = tmp_path / "ind0.duckdb"
+    build(db, d, min_year=2000)
+    con = duckdb.connect(str(db), read_only=True)
+    got = dict(con.execute("select tourney_id, indoor_filled from matches").fetchall())
+    assert got == {"2020-900": "O", "2021-900": "O", "2022-900": "O"}

@@ -32,7 +32,8 @@ select
     l_svpt                            as ret_pts_played,
     l_svpt - l_1stWon - l_2ndWon      as ret_pts_won,
     l_bpFaced - l_bpSaved             as bp_won,
-    l_bpFaced                         as bp_chances
+    l_bpFaced                         as bp_chances,
+    l_ace                             as ret_aces       -- aces hit against this player (pace)
 from matches
 where is_rateable
 union all
@@ -47,6 +48,7 @@ select
     coalesce(w_svpt > 0 and l_svpt > 0, false),
     l_ace, l_df, l_svpt, l_1stIn, l_1stWon, l_2ndWon, l_1stWon + l_2ndWon, l_bpSaved, l_bpFaced,
     w_svpt, w_svpt - w_1stWon - w_2ndWon,
-    w_bpFaced - w_bpSaved, w_bpFaced
+    w_bpFaced - w_bpSaved, w_bpFaced,
+    w_ace
 from matches
 where is_rateable;

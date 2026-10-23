@@ -4,12 +4,15 @@
 -- used as features for that same match; only lagged aggregates are allowed (see features.py).
 
 create or replace table matches_core as
-with indoor_fill as (
+with rm as (
+    -- TML codes outdoor as '0' for some 2026 rows (US Open); normalise to 'O'.
+    select * replace (case when indoor = '0' then 'O' else indoor end as indoor) from raw_matches
+), indoor_fill as (
     -- Indoor/outdoor is event metadata, known in advance (not outcome information). Fill a missing
     -- value only when the same event and surface is unambiguous in every other year.
     select split_part(tourney_id, '-', 2) as event_id, surface,
            case when count(distinct indoor) = 1 then any_value(indoor) end as fill
-    from raw_matches
+    from rm
     where indoor is not null
     group by 1, 2
 )
@@ -78,7 +81,7 @@ select
      or lower(m.tourney_name) like '%united cup%')         as is_team_event,
     -- Next Gen Finals use shortened sets, so scores/stats are not comparable to normal matches
     (lower(m.tourney_name) like '%next gen%')              as is_nonstandard_format
-from raw_matches m
+from rm m
 left join score_parsed s on m.score is not distinct from s.score
 left join indoor_fill f
        on split_part(m.tourney_id, '-', 2) = f.event_id and m.surface is not distinct from f.surface;

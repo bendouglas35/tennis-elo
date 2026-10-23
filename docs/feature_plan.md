@@ -1,6 +1,6 @@
 # Feature plan (v0.2)
 
-Status: step 1 (everything except court pace) is built and tested; court pace is next. Items marked
+Status: step 1 (form, fatigue, entry) and step 2 (court pace) are built and tested. Elo is next. Items marked
 **(default)** are my assumptions, open to change.
 
 ## Ordering and leakage rules
@@ -89,3 +89,66 @@ Keyed by (event id, surface, indoor), because event ids are stable across sponso
   simultaneous, which is safe (no leakage) at the cost of ignoring the earlier tie's load.
 - **Leakage tests:** `make leakage` (truncation and perturbation on the real database) and the
   pytest suite, which also mutation-tests the checks themselves by injecting a leak.
+
+## Step 2 as built: court pace
+
+Code: `src/tennis/pace.py` (SQL stages), `src/tennis/pace_tune.py` (tuning), tests in `tests/test_pace.py`.
+Columns added to `model_features`: `pace_static`, `pace_running`, `pace_n_running`, `pace_n_prior`,
+`altitude_km`. They describe the match's court, so they are context columns, not A-minus-B differences.
+Pace matters through interactions (a fast court helps big servers), which the v0.4 models must be
+given explicitly (for example pace x difference in ace rate); a main effect is symmetric and cancels
+out of the A/B target.
+
+- **Residuals** follow the plan. One addition: a new form stat, `f_ace_allowed_rate` (aces hit against
+  the player per return point), is needed for the expected ace rate. The tour rates in the
+  expectation are cumulative over strictly earlier tournament weeks. 92% of standard tour matches get
+  a residual (the rest lack serve stats or have a player with too little history).
+- **Standardisation constants** (`SD_ACE = 0.0331`, `SD_SP = 0.0473`, the SD of the per-match residuals)
+  were measured once on training years (<= 2021) and are fixed in code, so that deleting later data
+  cannot move them.
+- **Surface sanity check** (mean composite per match, whole sample): grass +0.31, carpet +0.34, indoor
+  hard +0.08, outdoor hard -0.09, outdoor clay -0.25. Latest static pace puts Stuttgart, Halle,
+  Queen's and Wimbledon at the fast end and Monte Carlo, Barcelona and Roland Garros at the slow end.
+- **Persistence:** the correlation between an event's mean composite and the same event's the year
+  before is 0.69 (1,443 pairs, editions with >= 20 matches).
+- **Tuning (training years 2004-2021 only, scored by squared error against each edition's realised
+  mean, weighted by matches):**
+
+  | Static pace setting | Error |
+  |---|---|
+  | Surface/indoor mean only (no event history) | 0.1004 |
+  | Pooled, rho 0.6, 5 editions, m = 100 (original default) | 0.0673 |
+  | Pooled, rho 0.6, 5 editions, m = 25 (**chosen**) | 0.0604 |
+  | Best of the grid (8 editions, m = 25) | 0.0602 |
+
+  Using the event's own history cuts that error by about 40% relative to the surface mean alone, and the
+  planned 100 pseudo-matches was too much shrinkage, so the default is now **25**. Five editions
+  and rho 0.6 stay (eight editions is only 0.0002 better). Running pace, scored on the composite of
+  each later-round match: no running pace 0.6072, m = 30 0.5838, **m = 10 0.5812** (chosen). The
+  gain from running pace is small (about 4% of a noise-dominated error), which is expected: it only
+  has earlier rounds of one week to learn from. The ablation tests whether it adds anything.
+- **Fallbacks:** 7,406 matches have no previous edition and use the surface/indoor mean (386 of the
+  11,509 matches from 2023 on; 2,703 of the 52,600 from 2004-2021).
+- **Altitude:** nine events, all >= 500 m, as rounded city elevations from common public references
+  (not venue-surveyed): Bogota 2,640 m, Quito 2,850 m, Mexico City 2,240 m, Johannesburg 1,750 m, Gstaad
+  1,050 m, Kitzbuhel 760 m, Madrid 650 m, Santiago 520 m. Only 4,828 matches are affected; it is a
+  weak candidate feature and the ablation will say whether it earns a place.
+- **Ablation (surface -> + indoor/altitude -> + static pace -> + running pace)** is deferred to v0.4,
+  since it needs the interaction features and the final model to be meaningful.
+
+## Fixes made during step 2
+
+- **Indoor coding:** the 2026 US Open (127 rows) is coded indoor = '0'; it is now normalised to 'O',
+  otherwise it would have made that event look ambiguous for filling.
+- **`prev_retired` tie-break (latent step 1 bug):** where a player has several matches with an
+  identical order key (Davis Cup ties), the "previous match ended in retirement" flag was picked
+  arbitrarily and changed with physical row order. The truncation check caught it. It is now
+  deterministic: 1 if any of the latest simultaneous matches ended in retirement. Covered by a test.
+- **Perturbation check redesigned:** pace and form legitimately share tour-wide and surface-wide
+  means over earlier data, so perturbed matches from different weeks can affect each other's rows
+  and the old "80 random late matches" design reported false leaks. It now perturbs matches from
+  one week at a time (at most one per player and event), repeated for several weeks (8 on real data:
+  31 matches, own rows 0 changed, 492,164 earlier-row comparisons 0 changed, 134,210 later rows
+  changed). Fewer matches are perturbed per run than before, but each comparison is valid.
+- **Leakage checks are mutation-tested for pace:** deliberately broken pace SQL (pooling the same
+  year; running pace including the match itself) is caught.

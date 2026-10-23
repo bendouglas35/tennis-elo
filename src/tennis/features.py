@@ -15,6 +15,7 @@ STATS = [
     ("first_won_pct", "first_won", "first_in", "stats"),
     ("second_won_pct", "second_won", "(svpt - first_in)", "stats"),
     ("ace_rate", "ace", "svpt", "stats"),
+    ("ace_allowed_rate", "ret_aces", "ret_pts_played", "stats"),
     ("df_rate", "df", "svpt", "stats"),
     ("sv_won_pct", "sv_pts_won", "svpt", "stats"),
     ("bp_saved_pct", "bp_saved", "bp_faced", "stats"),
@@ -34,6 +35,7 @@ DIFF_FEATURES = (
     + [f"fs_{s}" for s in SURFACE_STATS] + ["fs_dominance_ratio", "fs_eff_stats"]
     + FATIGUE_COLS
 )
+PACE_FEATURES = ["pace_static", "pace_running", "pace_n_running", "pace_n_prior", "altitude_km"]
 RAW_FEATURES = ["f_n_stats", "prev_retired", "is_seeded", "is_qualifier", "is_wildcard", "is_lucky_loser"]
 
 _UNBOUNDED = "range between unbounded preceding and 1 preceding"
@@ -102,7 +104,7 @@ def fatigue_sql() -> str:
 create or replace table fatigue as
 select match_id, player_id,
     tourney_date - max(tourney_date) over ({prior})          as days_since_last,
-    arg_max(retired::int, ord_num) over ({prior})            as prev_retired,
+    arg_max(retired::int, ord_num * 2 + retired::int) over ({prior}) as prev_retired,  -- tie: any retired
     count(*) over ({prior})                                  as career_matches,
     count(*) over ({tour})                                   as tourney_matches_before,
     coalesce(sum(minutes) over ({tour}), 0)                  as tourney_minutes_before,
@@ -139,6 +141,7 @@ join fatigue fa using (match_id, player_id)
 def model_features_sql() -> str:
     diffs = ", ".join(f"pa.{c} - pb.{c} as d_{c}" for c in DIFF_FEATURES)
     raws = ", ".join(f"pa.{c} as {c}_a, pb.{c} as {c}_b" for c in RAW_FEATURES)
+    pace = ", ".join(f"mp.{c}" for c in PACE_FEATURES)
     return f"""
 create or replace table model_features as
 select ms.match_id, ms.tourney_id, ms.event_id, ms.tourney_date, ms.ord_num,
@@ -152,18 +155,22 @@ select ms.match_id, ms.tourney_id, ms.event_id, ms.tourney_date, ms.ord_num,
        ms.ht_a - ms.ht_b                                           as d_ht,
        coalesce(ms.hand_a = 'L', false)                            as lefty_a,
        coalesce(ms.hand_b = 'L', false)                            as lefty_b,
-       {diffs}, {raws}
+       {pace}, {diffs}, {raws}
 from match_sides ms
 join player_features pa on pa.match_id = ms.match_id and pa.player_id = ms.player_a_id
 join player_features pb on pb.match_id = ms.match_id and pb.player_id = ms.player_b_id
+left join match_pace mp on mp.match_id = ms.match_id
 """
 
 
-def build_features(con, half_life: float = 20.0, min_eff: float = 3.0) -> None:
-    """Create form_overall, form_surface, fatigue, player_features and model_features."""
+def build_features(con, half_life: float = 20.0, min_eff: float = 3.0, pace=None) -> None:
+    """Create form_overall, form_surface, fatigue, court pace, player_features and model_features."""
+    from .pace import build_pace
+
     con.execute(form_sql("form_overall", "f_", "player_id", STATS, half_life, min_eff))
     surf = [s for s in STATS if s[0] in SURFACE_STATS]
     con.execute(form_sql("form_surface", "fs_", "player_id, surface", surf, half_life, min_eff))
     con.execute(fatigue_sql())
+    build_pace(con, pace)
     con.execute(player_features_sql())
     con.execute(model_features_sql())

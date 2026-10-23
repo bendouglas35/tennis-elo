@@ -30,7 +30,11 @@ def main(argv=None) -> None:
 
     l = sub.add_parser("leakage-check", help="truncation and perturbation leakage tests on a built db")
     l.add_argument("--db", default="data/tennis.duckdb")
-    l.add_argument("--samples", type=int, default=80)
+    l.add_argument("--samples", type=int, default=10, help="matches perturbed per week")
+    l.add_argument("--rounds", type=int, default=6, help="number of weeks perturbed")
+
+    t = sub.add_parser("pace-tune", help="tune court-pace smoothing on training years only")
+    t.add_argument("--db", default="data/tennis.duckdb")
 
     a = p.parse_args(argv)
     if a.cmd == "download":
@@ -48,11 +52,20 @@ def main(argv=None) -> None:
         for c in t["cases"]:
             print(f"truncation q={c['quantile']}: compared {c['rows_compared']:,} rows, "
                   f"changed {c['rows_changed']}")
-        pt = leakage.perturbation_check(a.db, n=a.samples)
+        pt = leakage.perturbation_check(a.db, n=a.samples, rounds=a.rounds)
         print(f"perturbation: {pt}")
         ok = t["ok"] and pt["ok"]
         print("LEAKAGE CHECK:", "PASS" if ok else "FAIL")
         raise SystemExit(0 if ok else 1)
+    elif a.cmd == "pace-tune":
+        from . import pace_tune
+
+        res = pace_tune.run(a.db)
+        print("static pace, best settings by squared error (train years 2004-2021):")
+        print(res["static"].head(8).to_string(index=False))
+        print("\nrunning pace by shrinkage (m_running):")
+        print(res["running"].to_string(index=False))
+        print(f"\nbest static {res['best_static']}, best m_running {res['best_running']}")
     elif a.cmd == "baseline":
         res = baseline.run(a.db, include_team_events=a.include_team_events)
         print(f"train n={res['n_train']:,}  validation n={res['n_val']:,}")

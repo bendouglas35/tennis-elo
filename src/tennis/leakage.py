@@ -5,11 +5,13 @@ derived table with `derive`, and compare `model_features`.
 
 * truncation: delete every match after a cutoff. Features of the remaining matches must not change,
   i.e. a feature never depends on the future.
-* perturbation: overwrite the in-match stats of a sample of late matches. Their own features, and
-  the features of everything at or before the earliest perturbed match, must not change; features
-  of later matches must change (otherwise the test would be vacuous). The sample holds at most one
-  match per player and per event, because two perturbed matches that share a player (or an event,
-  once court pace is pooled by event) legitimately affect each other.
+* perturbation: overwrite the in-match stats of a sample of late matches from one week (repeated
+  for several weeks). Their own features, and the features of everything at or before the earliest
+  perturbed match, must not change; features of later matches must change (otherwise the test
+  would be vacuous). Each sample holds at most one match per player and per event, and all its
+  matches start in the same week, because perturbed matches that share a player or event, or that
+  differ in week (court pace uses tour- and surface-wide means over earlier data), legitimately
+  affect each other.
 """
 from __future__ import annotations
 
@@ -91,30 +93,56 @@ def thin_sample(base: pd.DataFrame, candidates: np.ndarray, n: int, seed: int) -
     return keep
 
 
-def perturbation_check(src_db: str, n: int = 80, seed: int = 0, **derive_kwargs) -> dict:
-    base = _features(copy_matches(src_db, **derive_kwargs))
-    late = base.index[base["ord_num"] >= base["ord_num"].quantile(0.6)].to_numpy()
-    sample = thin_sample(base, late, n, seed)
+def perturbation_check(src_db: str, n: int = 10, seed: int = 0, rounds: int = 6,
+                       min_sample: int = 3, **derive_kwargs) -> dict:
+    """Overwrite in-match stats of up to `n` matches that all start in the same week, `rounds` times.
 
-    con = copy_matches(src_db, **derive_kwargs)
-    con.register("sample_ids", pd.DataFrame({"match_id": sample}))
-    sets = ", ".join(f"{c} = coalesce({c}, 0) + 13" for c in IN_MATCH_COLS)
-    con.execute(f"update matches set {sets} where match_id in (select match_id from sample_ids)")
+    One week per round, at most one match per player and per event: pace and form share tour-wide
+    and surface-wide means over *earlier* data, so perturbed matches in different weeks would
+    legitimately change each other's rows. Within one week (and one event / player each) they cannot,
+    so a perturbed match's own row and everything at or before it must stay identical, while later
+    rows must move (otherwise the test is vacuous).
+    """
+    con = duckdb.connect()
+    con.execute(f"attach '{src_db}' as src (read_only)")
+    con.execute("create table matches_orig as select * from src.matches")
+    con.execute("detach src")
+    con.execute("create table matches as select * from matches_orig")
     derive(con, **derive_kwargs)
-    pert = _features(con)
-    con.close()
+    base = _features(con)
 
-    sample_idx = pd.Index(sample)
-    first_ord = int(base.loc[sample_idx, "ord_num"].min())
-    before = base.index[base["ord_num"] <= first_ord]
-    later = base.index[(base["ord_num"] > first_ord) & ~base.index.isin(sample_idx)]
-    out = {
-        "perturbed": len(sample_idx),
-        "own_rows_changed": mismatched_rows(base, pert, sample_idx),
-        "earlier_rows_compared": len(before),
-        "earlier_rows_changed": mismatched_rows(base, pert, before),
-        "later_rows_changed": mismatched_rows(base, pert, later),  # sensitivity: must be > 0
-    }
+    late = base[base["ord_num"] >= base["ord_num"].quantile(0.6)]
+    dates = late["tourney_date"].drop_duplicates().to_numpy()
+    rng = np.random.default_rng(seed)
+    out = {"rounds": 0, "perturbed": 0, "own_rows_changed": 0, "earlier_rows_compared": 0,
+           "earlier_rows_changed": 0, "later_rows_changed": 0}
+    # Among 60 random late weeks, use the ones that allow the most independent matches.
+    weeks = []
+    for k, date in enumerate(rng.permutation(dates)[:60]):
+        cands = late.index[late["tourney_date"] == date].to_numpy()
+        sample = thin_sample(base, cands, n, seed + k)
+        if len(sample) >= min_sample:
+            weeks.append(sample)
+    weeks.sort(key=len, reverse=True)
+    for sample in weeks[:rounds]:
+        con.register("sample_ids", pd.DataFrame({"match_id": sample}))
+        con.execute("create or replace table matches as select * from matches_orig")
+        sets = ", ".join(f"{c} = coalesce({c}, 0) + 13" for c in IN_MATCH_COLS)
+        con.execute(f"update matches set {sets} where match_id in (select match_id from sample_ids)")
+        derive(con, **derive_kwargs)
+        pert = _features(con)
+
+        sample_idx = pd.Index(sample)
+        first_ord = int(base.loc[sample_idx, "ord_num"].min())
+        before = base.index[base["ord_num"] <= first_ord]
+        later = base.index[(base["ord_num"] > first_ord) & ~base.index.isin(sample_idx)]
+        out["rounds"] += 1
+        out["perturbed"] += len(sample_idx)
+        out["own_rows_changed"] += mismatched_rows(base, pert, sample_idx)
+        out["earlier_rows_compared"] += len(before)
+        out["earlier_rows_changed"] += mismatched_rows(base, pert, before)
+        out["later_rows_changed"] += mismatched_rows(base, pert, later)  # sensitivity: must be > 0
+    con.close()
     out["ok"] = (out["own_rows_changed"] == 0 and out["earlier_rows_changed"] == 0
-                 and out["later_rows_changed"] > 0 and out["perturbed"] > 0)
+                 and out["later_rows_changed"] > 0 and out["perturbed"] > 0 and out["rounds"] > 0)
     return out
