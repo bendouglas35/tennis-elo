@@ -8,6 +8,26 @@ claim of beating the betting market (closing lines are very sharp).
 v0.4: Leakage-safe SQL feature layer, tuned Elo ladder, logistic regression and
 LightGBM, with calibration, SHAP, error analysis, ablations and a one-shot frozen-test evaluation.
 
+## At a glance
+
+- **What it does:** predicts the winner of ATP tour matches from information available before the match,
+  and measures what each ingredient (rankings, Elo, form and fatigue, court pace, extra rating data) adds.
+- **Result:** on a test set scored once (2023 onwards, 10,412 matches) the best model reaches log loss
+  0.607 [0.596, 0.618] and about 66% accuracy, against 0.631 for a rankings-only model and 0.626 for tuned Elo.
+  The gain is real and stable across years, but small. No comparison with betting odds was made.
+- **What did not work:** rating trend, Glicko uncertainty, a serve/return point model and rank-seeded
+  starting ratings all failed to improve on the simpler model. Reported in full, not hidden.
+- **What I would point to:** leakage tests that were shown to fail when a leak is planted, a split frozen
+  before modelling, tournament-clustered bootstrap intervals, and exactly antisymmetric models.
+- **Stack:** Python, DuckDB/SQL, scikit-learn, LightGBM, SHAP. 80 tests.
+
+![Calibration on the frozen test set](docs/figures/calibration_test.png)
+
+*Predicted win probability against observed frequency on the frozen test set. Closer to the diagonal
+is better; the recalibrated gradient-boosting model has the lowest expected calibration error (0.013).*
+
+Start with [`docs/REPORT.md`](docs/REPORT.md) for the full write-up.
+
 ## Question
 
 Does surface-aware Elo, or a model on lagged form, fatigue and court-pace features, predict ATP
