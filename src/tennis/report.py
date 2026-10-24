@@ -314,3 +314,65 @@ def run_final_test(db_path, out_dir="docs", force: bool = False, n_boot: int = 2
     (out_dir / "test_results.md").write_text("\n".join(md) + "\n")
     marker.write_text(json.dumps(res, indent=1, default=float))
     return res
+
+
+# ---- v0.5: do the four improvements help? ----------------------------------------------------
+
+V05_STEPS = [
+    ("v0.4 feature set", False, dataset.FULL_GROUPS),
+    ("+ Elo learns from qualifying / Challenger results", True, dataset.FULL_GROUPS),
+    ("+ rating trend (90 / 365 days)", True, dataset.FULL_GROUPS + ["trend"]),
+    ("+ Glicko uncertainty", True, dataset.FULL_GROUPS + ["trend", "glicko"]),
+    ("+ serve/return point model", True, dataset.FULL_GROUPS + ["trend", "glicko", "markov"]),
+]
+
+
+def run_v05_ablation(db_path, out_dir="docs", n_boot: int = 2000, steps=V05_STEPS, tag="v05") -> dict:
+    """Rolling-origin comparison (2018-2022, train < year) of the v0.5 feature steps, in order.
+
+    Development years only: nothing here loads 2023+. Each step is compared with the previous one
+    and with the v0.4 feature set, for logistic regression and LightGBM at the v0.4 hyperparameters.
+    """
+    out_dir = Path(out_dir)
+    cfg = load_config(out_dir / "model_config.json")
+    frames = {False: dataset.load(db_path, VAL_YEAR, ext=False), True: dataset.load(db_path, VAL_YEAR, ext=True)}
+    for f in frames.values():
+        dataset.assert_no_test_years(f)
+    res, md = {}, ["## v0.5 feature steps (rolling origin 2018-2022; each year predicted from earlier years)", ""]
+    for kind in ("LR", "GBM"):
+        preds = {}
+        for name, ext, groups in steps:
+            cols = dataset.columns_for(groups)
+            make = (lambda c=cols: models.LRModel(c, cfg["lr_C"])) if kind == "LR" else \
+                   (lambda c=cols: models.GBMModel(c, cfg["gbm_n_estimators"], **cfg["gbm_params"]))
+            r = models.rolling_origin(frames[ext], make, ABLATION_YEARS)
+            preds[name] = r.set_index("match_id")
+            print(f"  {kind}: {name} done", flush=True)
+        ids = preds[steps[0][0]].index
+        for n in preds:
+            ids = ids.intersection(preds[n].index)
+        base = preds[steps[0][0]].loc[ids]
+        values = {n: log_loss_vec(base["y"], preds[n].loc[ids, "p"]) for n in preds}
+        v22 = (base["yr"] == VAL_YEAR).to_numpy()
+        names = list(values)
+        diffs = [(names[i], names[i - 1]) for i in range(1, len(names))] + \
+                [(n, names[0]) for n in names[2:]]
+        boot = cluster_bootstrap(base["tourney_id"].to_numpy(), values, diffs, n_boot=n_boot)
+        boot22 = cluster_bootstrap(base["tourney_id"].to_numpy()[v22], {n: v[v22] for n, v in values.items()},
+                                   [(names[i], names[i - 1]) for i in range(1, len(names))], n_boot=n_boot)
+        f = lambda t, d=4: f"{t[0]:+.{d}f} [{t[1]:+.{d}f}, {t[2]:+.{d}f}]"
+        g = lambda t, d=4: f"{t[0]:.{d}f} [{t[1]:.{d}f}, {t[2]:.{d}f}]"
+        md += [f"### {kind} (n = {len(ids):,} matches; validation year alone n = {int(v22.sum()):,})", "",
+               "| Feature set | Log loss 2018-22 | Δ vs previous step | Δ vs v0.4 | Validation 2022 log loss | Δ vs previous (2022 only) |",
+               "|---|---|---|---|---|---|"]
+        for i, n in enumerate(names):
+            md.append(f"| {n} | {g(boot[n])} | {f(boot[f'{n} - {names[i-1]}']) if i else ''} | "
+                      f"{f(boot[f'{n} - {names[0]}']) if i > 1 else ''} | {g(boot22[n])} | "
+                      f"{f(boot22[f'{n} - {names[i-1]}']) if i else ''} |")
+        md.append("")
+        res[kind] = {n: {"all": list(boot[n]), "val2022": list(boot22[n])} for n in names}
+        res[kind]["steps"] = {f"{names[i]} - {names[i-1]}": list(boot[f"{names[i]} - {names[i-1]}"])
+                              for i in range(1, len(names))}
+    (out_dir / f"{tag}_ablation.md").write_text("\n".join(md) + "\n")
+    (out_dir / f"{tag}_ablation.json").write_text(json.dumps(res, indent=1, default=float))
+    return res

@@ -17,7 +17,7 @@ import pandas as pd
 
 from . import TRAIN_END_YEAR, VAL_YEAR
 from .baseline import fit_logistic, predict
-from .elo import EloConfig, load_matches, run_elo
+from .elo import TUNED, EloConfig, load_matches, run_elo
 from .metrics import accuracy_vec, brier_vec, cluster_bootstrap, log_loss_vec
 
 TUNE_FIRST_YEAR = 2008
@@ -26,10 +26,10 @@ TUNE_FIRST_YEAR = 2008
 class Workspace:
     """Loaded once: all rateable matches plus year / rank metadata for the standard ones."""
 
-    def __init__(self, db_path):
+    def __init__(self, db_path, aux: bool = False):
         con = duckdb.connect(str(db_path), read_only=True)
         try:
-            self.df = load_matches(con)
+            self.df = load_matches(con, aux=aux)
             meta = con.execute("""select match_id, year(tourney_date) as yr, winner_rank, loser_rank
                                   from matches where is_rateable""").df()
         finally:
@@ -87,13 +87,21 @@ def _changed(cfg: EloConfig, base: EloConfig) -> dict:
     return {k: v for k, v in a.items() if v != b[k]}
 
 
-def run(db_path, n_boot: int = 2000, verbose: bool = True) -> dict:
-    ws = Workspace(db_path)
+STEPS_EXT = [
+    ("Elo v0.3 (tuned)", lambda b: [TUNED]),
+    ("+ rank-seeded start", lambda b: _grid(b, rank_beta=(20.0, 40.0, 60.0, 90.0, 130.0))),
+    ("+ qualifying and Challenger results", lambda b: _grid(b, aux_k=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0))),
+]
+
+
+def run(db_path, n_boot: int = 2000, verbose: bool = True, steps=None, aux: bool = False) -> dict:
+    ws = Workspace(db_path, aux=aux)
+    steps = steps or STEPS
     default = EloConfig()
     kept = replace(default, k_mode="fixed")      # starting point for the first step
     kept_loss = None
     rows = []
-    for name, make in STEPS:
+    for name, make in steps:
         cands = list(make(kept))
         scored = [(ws.tune_loss(c), c) for c in cands]
         loss, best = min(scored, key=lambda t: t[0])

@@ -152,3 +152,36 @@ def test_k_floor_and_layoff_boost():
     a1 = 1500 + 32 * 0.5
     e = _p(a1 - (1500 - 32 * 0.5))
     assert nxt.loc[2, "w_r"] == pytest.approx(a1 + 32 * (1 + 1.0 * (1 - dec)) * (1 - e))
+
+
+def test_auxiliary_matches_update_ratings_but_are_never_scored():
+    rows = [(1, 0, "A", "B", {"aux": True}), (2, 7, "A", "C", {"aux": False})]
+    df = _df(rows)
+    df["aux"] = [True, False]
+    df["standard"] = [False, True]
+    off = run_elo(df, FIXED)
+    assert len(off) == 1 and off.loc[0, "w_r"] == 1500 and math.isnan(off.loc[0, "w_gap"])   # ignored
+    on = run_elo(df, EloConfig(k_mode="fixed", k_fixed=32, aux_k=0.5))
+    assert len(on) == 1
+    assert on.loc[0, "w_r"] == pytest.approx(1500 + 32 * 0.5 * 0.5)       # half-strength update
+    assert on.loc[0, "w_gap"] == 7                                       # and it counts as activity
+
+
+def test_rank_seeded_start_and_its_clip():
+    cfg = EloConfig(k_mode="fixed", k_fixed=32, rank_beta=100.0, rank_ref=100.0)
+    df = _df([(1, 0, "A", "B", {"winner_rank": 25, "loser_rank": 5000})])
+    out = run_elo(df, cfg)
+    assert out.loc[0, "w_r"] == pytest.approx(1500 + 100 * math.log(100 / 25))
+    assert out.loc[0, "l_r"] == pytest.approx(1500 - 250.0)              # clipped at -250
+    unranked = run_elo(_df([(1, 0, "A", "B", {})]), cfg)
+    assert unranked.loc[0, "w_r"] == 1500
+
+
+def test_trend_is_rating_change_over_the_window():
+    rows = [(i, 30 * i, "A", "B", {}) for i in range(1, 8)]
+    out = run_elo(_df(rows), FIXED)
+    assert math.isnan(out.loc[0, "w_tr90"])
+    # match 7 on day 210: rating 90 days earlier is the rating after the match on day 120
+    r_now = out.loc[6, "w_r"]
+    after_day120 = out.loc[4, "w_r"]                                  # pre-match 5 == after match 4 (day 120)
+    assert out.loc[6, "w_tr90"] == pytest.approx(r_now - after_day120)

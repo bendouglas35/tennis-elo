@@ -9,3 +9,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 .ipynb_checkpoints/
+data/raw_quali/*
+data/raw_chall/*

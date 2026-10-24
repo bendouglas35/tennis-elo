@@ -33,11 +33,14 @@ def main(argv=None) -> None:
     l.add_argument("--samples", type=int, default=10, help="matches perturbed per week")
     l.add_argument("--rounds", type=int, default=6, help="number of weeks perturbed")
 
+    x = sub.add_parser("build-aux", help="load qualifying / Challenger CSVs into aux_matches")
+    x.add_argument("--db", default="data/tennis.duckdb")
+
     e = sub.add_parser("elo-ladder", help="Elo extension ladder (tuned on 2008-2021, reported on 2022)")
     e.add_argument("--db", default="data/tennis.duckdb")
 
     m = sub.add_parser("models", help="v0.4: tune, or validate on 2022")
-    m.add_argument("action", choices=["tune", "validate"])
+    m.add_argument("action", choices=["tune", "validate", "v05"])
     m.add_argument("--db", default="data/tennis.duckdb")
     m.add_argument("--no-ablation", action="store_true")
 
@@ -69,6 +72,10 @@ def main(argv=None) -> None:
         ok = t["ok"] and pt["ok"]
         print("LEAKAGE CHECK:", "PASS" if ok else "FAIL")
         raise SystemExit(0 if ok else 1)
+    elif a.cmd == "build-aux":
+        from .aux import build_aux
+
+        build_aux(a.db)
     elif a.cmd == "elo-ladder":
         from . import ladder
 
@@ -81,6 +88,9 @@ def main(argv=None) -> None:
 
         if a.action == "tune":
             print(experiments.tune(a.db))
+        elif a.action == "v05":
+            report.run_v05_ablation(a.db)
+            print(Path("docs/v05_ablation.md").read_text())
         else:
             report.run_validation(a.db, with_ablation=not a.no_ablation)
             print(Path("docs/v04_validation.md").read_text())

@@ -4,7 +4,8 @@ Predicting ATP tour-level match outcomes with Elo variants and gradient boosting
 a leakage-safe feature layer. The aim is a carefully validated model with honest uncertainty, not a
 claim of beating the betting market (closing lines are very sharp).
 
-**Status: v0.4 complete.** Leakage-safe SQL feature layer, tuned Elo ladder, logistic regression and
+**Status: v0.5 complete. Full write-up: [`docs/REPORT.md`](docs/REPORT.md).**
+v0.4: Leakage-safe SQL feature layer, tuned Elo ladder, logistic regression and
 LightGBM, with calibration, SHAP, error analysis, ablations and a one-shot frozen-test evaluation.
 
 ## Question
@@ -67,6 +68,7 @@ docs/       write-ups per milestone
 | v0.2 | SQL feature layer: form, dominance ratio, rest and fatigue, court pace, leakage tests (built) |
 | v0.3 | Elo ladder: fixed/dynamic K, surface blend, layoff, margin of victory, best-of-5 (built) |
 | v0.4 | Logistic regression and LightGBM, calibration, bootstrap CIs, SHAP, error analysis, pace ablation (built) |
+| v0.5 | Qualifying and Challenger results in Elo (kept, about -0.003 log loss); rating trend, Glicko, point model (dropped); `docs/v05_improvements.md` (built) |
 
 ## Results
 
@@ -108,4 +110,4 @@ refused, since it would duplicate matches):
 
 Player IDs differ between the two sources, so their files cannot be joined on `player_id`.
 The source changes daily, so **pin a snapshot** (date and file hashes) before evaluating on the
-frozen test years. Raw data and derived databases are git-ignored and not redistributed.
+frozen test years. Qualifying and Challenger CSVs (`data/raw_quali`, `data/raw_chall`, used for v0.5 ratings) are likewise git-ignored. Raw data and derived databases are git-ignored and not redistributed.
