@@ -138,8 +138,7 @@ before reusing or redistributing them.
 
 - **Jeff Sackmann / Tennis Abstract** for the open ATP data that this whole field builds on
   ([tennis_atp](https://github.com/JeffSackmann/tennis_atp), CC BY-NC-SA 4.0): "Tennis databases, files,
-  and algorithms by Jeff Sackmann / Tennis Abstract". His published Elo work was the starting point for
-  the rating variants here.
+  and algorithms by Jeff Sackmann / Tennis Abstract".
 - **TennisMyLife** ([stats.tennismylife.org](https://stats.tennismylife.org/tennis-match-database)) for
   the daily-updated match files the reported results were computed on.
 - **Elo** (1978), *The Rating of Chessplayers*, and **Glickman** (1999), "Parameter estimation in large

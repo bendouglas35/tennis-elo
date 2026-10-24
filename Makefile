@@ -1,7 +1,7 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: setup data build build-aux v05 clean-note baseline leakage pace-tune elo tune validate final-test test clean
+.PHONY: setup data build build-aux v05 baseline leakage pace-tune elo tune validate final-test test clean
 
 setup:
 	$(PYTHON) -m pip install -e ".[dev]"
