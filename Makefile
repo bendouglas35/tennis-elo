@@ -1,7 +1,7 @@
 PYTHON ?= python3
 export PYTHONPATH := src
 
-.PHONY: setup data build baseline leakage pace-tune elo tune validate final-test test clean
+.PHONY: setup data build build-aux v05 clean-note baseline leakage pace-tune elo tune validate final-test test clean
 
 setup:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -18,6 +18,14 @@ endif
 
 build:
 	$(PYTHON) -m tennis.cli build
+
+# v0.5: qualifying (data/raw_quali) and Challenger (data/raw_chall) results for the ratings.
+build-aux:
+	$(PYTHON) -m tennis.cli build-aux
+
+# v0.5 rolling-origin comparison of the feature steps (development years only).
+v05:
+	$(PYTHON) -m tennis.cli models v05
 
 baseline:
 	$(PYTHON) -m tennis.cli baseline

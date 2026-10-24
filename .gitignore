@@ -11,3 +11,5 @@ __pycache__/
 .ipynb_checkpoints/
 data/raw_quali/*
 data/raw_chall/*
+!data/raw_quali/.gitkeep
+!data/raw_chall/.gitkeep
